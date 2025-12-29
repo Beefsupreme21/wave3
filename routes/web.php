@@ -17,3 +17,11 @@ Route::get('/tetris', function () {
 Route::get('/rpg', function () {
     return view('rpg');
 });
+
+Route::get('/plinko', function () {
+    return view('plinko');
+});
+
+Route::get('/pinball', function () {
+    return view('pinball');
+});

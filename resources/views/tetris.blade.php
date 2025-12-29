@@ -8,7 +8,8 @@
 
             const BOARD_OFFSET = 120;
 
-            const board = Array(20).fill(null).map(() => Array(10).fill(0));
+            let gameState = 'menu'; // 'menu', 'playing', 'gameover'
+            let board = [];
 
             const colors = ['#000', '#00f0f0', '#f0f000', '#a000f0', '#00f000', '#f00000', '#0000f0', '#f0a000'];
 
@@ -25,6 +26,30 @@
             let current = { piece: null, x: 0, y: 0 };
             let heldPiece = null;
             let canHold = true;
+            let dropTimer = null;
+
+            function resetBoard() {
+                board = Array(20).fill(null).map(() => Array(10).fill(0));
+                heldPiece = null;
+                canHold = true;
+            }
+
+            function startGame() {
+                resetBoard();
+                gameState = 'playing';
+                spawn();
+                if (dropTimer) clearInterval(dropTimer);
+                dropTimer = setInterval(() => {
+                    if (gameState === 'playing') {
+                        drop();
+                    }
+                }, 500);
+            }
+
+            function gameOver() {
+                gameState = 'gameover';
+                if (dropTimer) clearInterval(dropTimer);
+            }
 
             function spawn() {
                 current.piece = pieces[Math.floor(Math.random() * pieces.length)];
@@ -32,17 +57,12 @@
                 current.y = 0;
                 canHold = true;
                 if (collides()) {
-                    for (let y = 0; y < 20; y++) {
-                        for (let x = 0; x < 10; x++) {
-                            board[y][x] = 0;
-                        }
-                    }
-                    heldPiece = null;
+                    gameOver();
                 }
             }
 
             function hold() {
-                if (!canHold) return;
+                if (!canHold || gameState !== 'playing') return;
                 canHold = false;
                 if (heldPiece === null) {
                     heldPiece = current.piece;
@@ -82,9 +102,22 @@
                 return ghostY;
             }
 
+            let isHardDropping = false;
+
             function hardDrop() {
-                current.y = getGhostY();
-                lock();
+                if (gameState !== 'playing' || isHardDropping) return;
+                isHardDropping = true;
+                animateDrop();
+            }
+
+            function animateDrop() {
+                if (current.y < getGhostY()) {
+                    current.y++;
+                    setTimeout(animateDrop, 5);
+                } else {
+                    isHardDropping = false;
+                    lock();
+                }
             }
 
             function lock() {
@@ -110,6 +143,7 @@
             }
 
             function rotateRight() {
+                if (gameState !== 'playing') return;
                 const rotated = current.piece[0].map((_, i) =>
                     current.piece.map(row => row[i]).reverse()
                 );
@@ -119,6 +153,7 @@
             }
 
             function rotateLeft() {
+                if (gameState !== 'playing') return;
                 const rotated = current.piece[0].map((_, i) =>
                     current.piece.map(row => row[row.length - 1 - i])
                 );
@@ -128,11 +163,13 @@
             }
 
             function move(dir) {
+                if (gameState !== 'playing') return;
                 current.x += dir;
                 if (collides()) current.x -= dir;
             }
 
             function drop() {
+                if (gameState !== 'playing') return;
                 current.y++;
                 if (collides()) {
                     current.y--;
@@ -140,7 +177,45 @@
                 }
             }
 
-            function draw() {
+            function drawMenu() {
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, 420, 600);
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 48px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('TETRIS', 210, 200);
+
+                ctx.font = '20px sans-serif';
+                ctx.fillStyle = '#888';
+                ctx.fillText('Press ENTER to start', 210, 280);
+
+                ctx.font = '14px sans-serif';
+                ctx.fillStyle = '#666';
+                ctx.fillText('← → Move', 210, 380);
+                ctx.fillText('↓ Soft drop  ↑ Hard drop', 210, 400);
+                ctx.fillText('Z/X Rotate  C Hold', 210, 420);
+            }
+
+            function drawGameOver() {
+                // Draw the frozen board behind
+                drawBoard();
+
+                // Overlay
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, 420, 600);
+
+                ctx.fillStyle = '#f00';
+                ctx.font = 'bold 40px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', 210, 280);
+
+                ctx.font = '20px sans-serif';
+                ctx.fillStyle = '#888';
+                ctx.fillText('Press ENTER to restart', 210, 340);
+            }
+
+            function drawBoard() {
                 ctx.fillStyle = '#000';
                 ctx.fillRect(0, 0, 420, 600);
 
@@ -149,6 +224,7 @@
                 ctx.strokeRect(10, 10, 100, 100);
                 ctx.fillStyle = '#fff';
                 ctx.font = '14px sans-serif';
+                ctx.textAlign = 'left';
                 ctx.fillText('HOLD [C]', 20, 130);
 
                 // Draw held piece
@@ -171,7 +247,7 @@
                 ctx.fillText('↑ Hard drop', 15, 210);
                 ctx.fillText('Z/X Rotate', 15, 225);
 
-                // Draw board
+                // Draw board grid
                 for (let y = 0; y < 20; y++) {
                     for (let x = 0; x < 10; x++) {
                         if (board[y][x]) {
@@ -184,7 +260,7 @@
                 }
 
                 // Draw ghost piece
-                if (current.piece) {
+                if (current.piece && gameState === 'playing') {
                     const ghostY = getGhostY();
                     for (let y = 0; y < current.piece.length; y++) {
                         for (let x = 0; x < current.piece[y].length; x++) {
@@ -199,7 +275,7 @@
                 }
 
                 // Draw current piece
-                if (current.piece) {
+                if (current.piece && gameState === 'playing') {
                     for (let y = 0; y < current.piece.length; y++) {
                         for (let x = 0; x < current.piece[y].length; x++) {
                             if (current.piece[y][x]) {
@@ -211,7 +287,24 @@
                 }
             }
 
+            function draw() {
+                if (gameState === 'menu') {
+                    drawMenu();
+                } else if (gameState === 'playing') {
+                    drawBoard();
+                } else if (gameState === 'gameover') {
+                    drawGameOver();
+                }
+            }
+
             document.addEventListener('keydown', e => {
+                if (gameState === 'menu' || gameState === 'gameover') {
+                    if (e.key === 'Enter') {
+                        startGame();
+                    }
+                    return;
+                }
+
                 if (e.key === 'ArrowLeft') move(-1);
                 if (e.key === 'ArrowRight') move(1);
                 if (e.key === 'ArrowDown') drop();
@@ -223,13 +316,6 @@
                 if (e.key === 'x' || e.key === 'X') rotateRight();
                 if (e.key === 'c' || e.key === 'C') hold();
             });
-
-            spawn();
-
-            setInterval(() => {
-                drop();
-                draw();
-            }, 500);
 
             function gameLoop() {
                 draw();
