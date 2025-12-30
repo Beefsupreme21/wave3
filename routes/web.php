@@ -25,3 +25,7 @@ Route::get('/plinko', function () {
 Route::get('/pinball', function () {
     return view('pinball');
 });
+
+Route::get('/flappy', function () {
+    return view('flappy');
+});
